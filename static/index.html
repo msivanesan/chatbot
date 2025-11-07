@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gemini Flask Chat — Polished UI</title>
+  <style>
+    /* ---- CSS RESET (lite) ---- */
+    *,*::before,*::after{box-sizing:border-box}html,body{height:100%}body{margin:0}
+
+    /* ---- THEME ---- */
+    :root{
+      --bg: #0b1020;
+      --panel: #121a33;
+      --panel-2: #0f162c;
+      --text: #e6ecff;
+      --muted: #9fb0d0;
+      --accent: #7aa2ff;
+      --accent-2: #9a7aff;
+      --success: #2ecc71;
+      --danger: #ff6b6b;
+      --user: #263d84;
+      --bot: #1b2749;
+      --border: #20305b;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 16px;
+    }
+    @media (prefers-color-scheme: light) {
+      :root{
+        --bg: #f3f6ff; --panel: #ffffff; --panel-2:#f6f8ff; --text:#1b2559; --muted:#586a9a;
+        --accent:#2f6bff; --accent-2:#6b2fff; --success:#1fa97c; --danger:#d64545; --user:#e8f0ff; --bot:#f2f5ff; --border:#e5e9fb;
+      }
+    }
+
+    body{
+      font: 15px/1.4 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: var(--text);
+      background:
+        radial-gradient(60vmax 60vmax at -10% -10%, rgba(122,162,255,.15), transparent 60%),
+        radial-gradient(60vmax 60vmax at 110% -10%, rgba(154,122,255,.15), transparent 60%),
+        radial-gradient(60vmax 60vmax at 50% 120%, rgba(122,255,214,.12), transparent 60%),
+        var(--bg);
+      display:flex; align-items:stretch; justify-content:center;
+    }
+
+    .app{width:100%; max-width:980px; display:flex; flex-direction:column; min-height:100dvh;}
+
+    /* ---- HEADER ---- */
+    .header{
+      position:sticky; top:0; z-index:3; backdrop-filter: saturate(140%) blur(8px);
+      background: linear-gradient(180deg, rgba(0,0,0,.16), rgba(0,0,0,0))
+                  ,linear-gradient(90deg, rgba(122,162,255,.18), rgba(154,122,255,.18));
+      border-bottom: 1px solid var(--border);
+    }
+    .header-inner{display:flex; gap:12px; align-items:center; justify-content:space-between; padding:14px 18px;}
+    .brand{display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:.3px}
+    .logo{width:28px; height:28px; border-radius:8px; background:
+      conic-gradient(from 200deg, var(--accent), var(--accent-2)); box-shadow: var(--shadow)}
+    .pill{font-size:12px; padding:6px 10px; border:1px solid var(--border); border-radius:999px; color:var(--muted)}
+
+    .header-actions{display:flex; gap:10px; align-items:center}
+    .btn{display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:10px; border:1px solid var(--border); background:var(--panel-2); color:var(--text); cursor:pointer}
+    .btn:hover{filter:brightness(1.08)}
+    .dot{width:10px; height:10px; border-radius:50%; background:var(--success); box-shadow:0 0 0 4px rgba(46,204,113,.18)}
+    .theme-toggle{border:1px solid var(--border); background:transparent; padding:8px 10px; border-radius:10px; cursor:pointer}
+
+    /* ---- CHAT AREA ---- */
+    .chat{flex:1; display:flex; flex-direction:column; gap:16px; padding:20px;}
+    .messages{flex:1; overflow:auto; display:flex; flex-direction:column; gap:14px; padding-bottom:8px; scroll-behavior:smooth}
+    .msg{display:flex; gap:10px; align-items:flex-start;}
+    .avatar{width:32px; height:32px; border-radius:50%; flex:0 0 auto; background:var(--panel-2); display:grid; place-items:center; border:1px solid var(--border)}
+    .bubble{max-width:75%; padding:12px 14px; border-radius:14px; border:1px solid var(--border); box-shadow:var(--shadow)}
+    .msg.user .bubble{background:var(--user)}
+    .msg.bot .bubble{background:var(--bot)}
+    .name{font-size:12px; color:var(--muted); margin-bottom:6px}
+
+    .sysbar{display:flex; align-items:center; gap:10px; justify-content:center; color:var(--muted); font-size:12px}
+
+    /* ---- INPUT AREA ---- */
+    .composer{position:sticky; bottom:0; z-index:2; background:linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.25)), var(--bg); padding:16px 20px;}
+    .composer-inner{display:flex; gap:10px; align-items:flex-end; border:1px solid var(--border); border-radius:16px; padding:8px; background:var(--panel); box-shadow:var(--shadow)}
+    .ta{flex:1; resize:none; max-height:180px; min-height:48px; border:0; background:transparent; color:var(--text); outline:none; padding:10px 12px; font:inherit}
+    .send{display:inline-flex; align-items:center; justify-content:center; gap:8px; min-width:46px; height:46px; border-radius:12px; border:1px solid var(--border); background:linear-gradient(180deg, var(--accent), var(--accent-2)); color:white; cursor:pointer}
+    .send[disabled]{opacity:.6; cursor:not-allowed}
+
+    /* ---- TYPING DOTS ---- */
+    .dots{display:inline-flex; gap:6px; align-items:center}
+    .dots i{width:6px; height:6px; border-radius:50%; background:currentColor; opacity:.6; animation:blink 1.2s infinite}
+    .dots i:nth-child(2){animation-delay:.2s}
+    .dots i:nth-child(3){animation-delay:.4s}
+    @keyframes blink{0%,80%,100%{transform:translateY(0); opacity:.35} 40%{transform:translateY(-3px); opacity:1}}
+
+    /* ---- UTIL ---- */
+    .hidden{display:none}
+    .footer{padding:14px 18px; font-size:12px; color:var(--muted); text-align:center}
+    .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding:.1em .35em; border:1px solid var(--border); border-radius:6px; color:var(--muted)}
+
+    /* Scrollbar (webkit) */
+    .messages::-webkit-scrollbar{height:10px;width:10px}
+    .messages::-webkit-scrollbar-thumb{background:var(--border); border-radius:8px}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="header-inner">
+        <div class="brand">
+          <div class="logo" aria-hidden="true"></div>
+          <div>
+            <div>Gemini Chat</div>
+            <div class="pill" id="model-pill" title="Model in use">gemini-2.5-flash</div>
+          </div>
+        </div>
+        <div class="header-actions">
+          <div class="btn" id="status-btn" title="Backend status"><span class="dot" id="status-dot"></span><span>Connected</span></div>
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">🌓</button>
+          <button class="btn" id="clear-btn" title="Clear conversation">🗑️ Clear</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="chat">
+      <div class="sysbar">Press <span class="kbd">Enter</span> to send · <span class="kbd">Shift+Enter</span> for newline</div>
+      <div id="messages" class="messages" role="log" aria-live="polite"></div>
+    </main>
+
+    <div class="composer">
+      <div class="composer-inner">
+        <textarea id="msg" class="ta" placeholder="Ask me anything…"></textarea>
+        <button id="send" class="send" aria-label="Send">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <footer class="footer">Built for a Flask backend at <code>/chat</code>. Keep keys on the server.</footer>
+  </div>
+
+<script>
+  // ---- STATE ----
+  const messagesEl = document.getElementById('messages');
+  const msgInput = document.getElementById('msg');
+  const sendBtn = document.getElementById('send');
+  const clearBtn = document.getElementById('clear-btn');
+  const statusDot = document.getElementById('status-dot');
+  const modelPill = document.getElementById('model-pill');
+  const history = JSON.parse(localStorage.getItem('history')||'[]');
+  let modelName = localStorage.getItem('model') || 'gemini-2.5-flash';
+  modelPill.textContent = modelName;
+
+  // ---- THEME ----
+  const toggleBtn = document.getElementById('theme-toggle');
+  const savedTheme = localStorage.getItem('theme');
+  if(savedTheme==='light') document.documentElement.style.setProperty('--bg', '#f3f6ff');
+  toggleBtn.addEventListener('click', () => {
+    const isDark = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() === '#0b1020';
+    if(isDark){
+      // switch to light
+      document.documentElement.style.setProperty('--bg', '#f3f6ff');
+      localStorage.setItem('theme','light');
+    } else {
+      // reload to default dark variables by removing override
+      localStorage.removeItem('theme');
+      location.reload();
+    }
+  });
+
+  // ---- RENDER ----
+  function scrollToBottom(){ messagesEl.scrollTop = messagesEl.scrollHeight; }
+
+  function el(tag, cls, text){
+    const n = document.createElement(tag);
+    if(cls) n.className = cls;
+    if(text!=null) n.textContent = text;
+    return n;
+  }
+
+  function renderMessage(role, content){
+    const msg = el('div', `msg ${role==='user'?'user':'bot'}`);
+    const avatar = el('div','avatar');
+    avatar.textContent = role==='user' ? '🧑' : '🤖';
+    const bubble = el('div','bubble');
+
+    const name = el('div','name', role==='user' ? 'You' : 'Gemini');
+    const body = el('div');
+    body.innerText = content; // safe plain text; replace with markdown parser if needed
+
+    bubble.appendChild(name);
+    bubble.appendChild(body);
+    msg.appendChild(avatar);
+    msg.appendChild(bubble);
+    messagesEl.appendChild(msg);
+    scrollToBottom();
+  }
+
+  function renderTyping(){
+    const msg = el('div','msg bot');
+    msg.id = 'typing';
+    const avatar = el('div','avatar'); avatar.textContent='🤖';
+    const bubble = el('div','bubble');
+    const name = el('div','name','Gemini');
+    const dots = el('div','dots'); dots.innerHTML = '<i></i><i></i><i></i>';
+    bubble.appendChild(name); bubble.appendChild(dots);
+    msg.appendChild(avatar); msg.appendChild(bubble);
+    messagesEl.appendChild(msg);
+    scrollToBottom();
+  }
+  function removeTyping(){ const t = document.getElementById('typing'); if(t) t.remove(); }
+
+  // ---- INITIAL WELCOME / RESTORE ----
+  if(history.length===0){
+    renderMessage('bot', 'Hi! I\'m your Gemini chatbot. Ask me anything.');
+  } else {
+    for(const m of history){ renderMessage(m.role, m.content); }
+  }
+
+  // ---- SEND ----
+  async function sendChat(){
+    const user = msgInput.value.trim(); if(!user) return;
+    msgInput.value = '';
+    renderMessage('user', user);
+    history.push({role:'user', content:user});
+    localStorage.setItem('history', JSON.stringify(history));
+
+    sendBtn.disabled = true; renderTyping(); setStatus(true);
+
+    try{
+      const r = await fetch('/chat',{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ user, history })
+      });
+      const data = await r.json();
+      removeTyping();
+      const reply = data.reply || data.error || '(no reply)';
+      renderMessage('bot', reply);
+      history.push({role:'model', content:reply});
+      localStorage.setItem('history', JSON.stringify(history));
+      if(!data.error) setStatus(true); else setStatus(false);
+    }catch(err){
+      removeTyping();
+      renderMessage('bot', '⚠️ Network error. Check your Flask server.');
+      setStatus(false);
+    } finally{
+      sendBtn.disabled = false; msgInput.focus();
+    }
+  }
+
+  // ---- STATUS INDICATOR ----
+  function setStatus(ok){
+    statusDot.style.background = ok? 'var(--success)' : 'var(--danger)';
+    statusDot.style.boxShadow = ok? '0 0 0 4px rgba(46,204,113,.18)' : '0 0 0 4px rgba(255,107,107,.18)';
+  }
+
+  // ---- EVENTS ----
+  document.getElementById('send').addEventListener('click', sendChat);
+  msgInput.addEventListener('keydown', e=>{
+    if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendChat(); }
+  });
+  msgInput.addEventListener('input', autoResize);
+  function autoResize(){ this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 180) + 'px'; }
+  autoResize.call(msgInput);
+
+  clearBtn.addEventListener('click', ()=>{
+    localStorage.removeItem('history');
+    while(messagesEl.firstChild) messagesEl.removeChild(messagesEl.firstChild);
+    history.splice(0, history.length);
+    renderMessage('bot', 'Conversation cleared. How can I help?');
+  });
+</script>
+</body>
+</html>
